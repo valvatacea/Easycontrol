@@ -1,4 +1,4 @@
-name: Build Easycontrol Release APK
+name: Build Easycontrol APK (Direct)
 
 on:
   workflow_dispatch:
@@ -20,48 +20,17 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x easycontrolfork/gradlew
 
-      # 1. Generate Keystore Release
-      - name: Generate Release Keystore
-        run: |
-          keytool -genkeypair -v \
-            -keystore release.jks \
-            -alias releaseKey \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass "easycontrolpass" \
-            -keypass "easycontrolpass" \
-            -dname "CN=Easycontrol, OU=Release, O=AutoBuild, L=City, S=State, C=ID"
-
-      # 2. Buat keystore.properties & salin ke Root dan Folder easycontrolfork/
-      - name: Setup keystore.properties in All Locations
-        run: |
-          cat <<EOF > keystore.properties
-          KEYSTORE_FILE=release.jks
-          KEYSTORE_PASSWORD=easycontrolpass
-          RELEASE_KEY_ALIAS=releaseKey
-          RELEASE_KEY_PASSWORD=easycontrolpass
-          storeFile=release.jks
-          storePassword=easycontrolpass
-          keyAlias=releaseKey
-          keyPassword=easycontrolpass
-          EOF
-
-          # Duplikasi file .jks dan .properties ke folder easycontrolfork/
-          cp keystore.properties easycontrolfork/keystore.properties
-          cp release.jks easycontrolfork/release.jks
-
-      # 3. Build Server and Release APK
-      - name: Build Server and Release APK
+      # Build server dan APK versi Debug secara langsung
+      - name: Build Server and App APK
         run: |
           cd easycontrolfork
           ./gradlew assembleDebug -p server
           ./gradlew copyDebug -p server
-          ./gradlew assembleRelease
+          ./gradlew assembleDebug
 
-      # 4. Upload Release APK
-      - name: Upload Signed Release APK
+      # Simpan hasil APK yang siap install
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Easycontrol-ARMv7a-Release-Signed
-          path: easycontrolfork/app/build/outputs/apk/release/*.apk
+          name: Easycontrol-ARMv7a-Direct
+          path: easycontrolfork/app/build/outputs/apk/debug/app-debug.apk

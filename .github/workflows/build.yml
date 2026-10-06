@@ -24,7 +24,7 @@ jobs:
       - name: Generate Release Keystore
         run: |
           keytool -genkeypair -v \
-            -keystore easycontrolfork/release.jks \
+            -keystore release.jks \
             -alias releaseKey \
             -keyalg RSA \
             -keysize 2048 \
@@ -33,10 +33,10 @@ jobs:
             -keypass "easycontrolpass" \
             -dname "CN=Easycontrol, OU=Release, O=AutoBuild, L=City, S=State, C=ID"
 
-      # 2. Buat keystore.properties sesuai format asli milik Easycontrol
-      - name: Setup keystore.properties
+      # 2. Buat keystore.properties & salin ke Root dan Folder easycontrolfork/
+      - name: Setup keystore.properties in All Locations
         run: |
-          cat <<EOF > easycontrolfork/keystore.properties
+          cat <<EOF > keystore.properties
           KEYSTORE_FILE=release.jks
           KEYSTORE_PASSWORD=easycontrolpass
           RELEASE_KEY_ALIAS=releaseKey
@@ -47,7 +47,11 @@ jobs:
           keyPassword=easycontrolpass
           EOF
 
-      # 3. Langsung Build Release APK
+          # Duplikasi file .jks dan .properties ke folder easycontrolfork/
+          cp keystore.properties easycontrolfork/keystore.properties
+          cp release.jks easycontrolfork/release.jks
+
+      # 3. Build Server and Release APK
       - name: Build Server and Release APK
         run: |
           cd easycontrolfork

@@ -1,4 +1,4 @@
-name: Build, Auto-Generate Key & Sign APK
+name: Build Easycontrol Release APK
 
 on:
   workflow_dispatch:
@@ -20,53 +20,12 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x easycontrolfork/gradlew
 
-      # 1. Generate Keystore Dummy dan Buat keystore.properties di Semua Lokasi Potensial
-      - name: Setup Dummy Keystore and Properties
-        run: |
-          # Buat file keystore dummy di root repo & di folder app
-          keytool -genkeypair -v \
-            -keystore dummy.jks \
-            -alias dummyKey \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass "dummypass" \
-            -keypass "dummypass" \
-            -dname "CN=Dummy, OU=Dummy, O=Dummy, L=Dummy, S=Dummy, C=ID"
-
-          cp dummy.jks easycontrolfork/dummy.jks
-          cp dummy.jks easycontrolfork/app/dummy.jks
-
-          # Tulis isi keystore.properties dengan path file dummy.jks
-          cat <<EOF > keystore.properties
-          storeFile=dummy.jks
-          storePassword=dummypass
-          keyAlias=dummyKey
-          keyPassword=dummypass
-          KEYSTORE_FILE=dummy.jks
-          KEYSTORE_PASSWORD=dummypass
-          RELEASE_KEY_ALIAS=dummyKey
-          RELEASE_KEY_PASSWORD=dummypass
-          EOF
-
-          # Salin properti ke semua direktori kerja Gradle
-          cp keystore.properties easycontrolfork/keystore.properties
-          cp keystore.properties easycontrolfork/app/keystore.properties
-
-      # 2. Build Server & Release APK (Unsigned/Dummy Signed)
-      - name: Build Server and Release APK
-        run: |
-          cd easycontrolfork
-          ./gradlew assembleDebug -p server
-          ./gradlew copyDebug -p server
-          ./gradlew assembleRelease
-
-      # 3. Generate Release Keystore Asli
+      # 1. Generate Keystore Release
       - name: Generate Release Keystore
         run: |
           keytool -genkeypair -v \
-            -keystore auto-release.jks \
-            -alias autoKey \
+            -keystore easycontrolfork/release.jks \
+            -alias releaseKey \
             -keyalg RSA \
             -keysize 2048 \
             -validity 10000 \
@@ -74,31 +33,31 @@ jobs:
             -keypass "easycontrolpass" \
             -dname "CN=Easycontrol, OU=Release, O=AutoBuild, L=City, S=State, C=ID"
 
-      # 4. Zipalign & Re-Sign APK dengan Key Asli
-      - name: Auto Sign Release APK
+      # 2. Buat keystore.properties sesuai format asli milik Easycontrol
+      - name: Setup keystore.properties
         run: |
-          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -n 1)
-          
-          # Cari file APK hasil build
-          APK_PATH=$(find easycontrolfork/app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
-          ALIGNED_APK="easycontrolfork/app/build/outputs/apk/release/easycontrol-release-aligned.apk"
-          FINAL_APK="easycontrolfork/app/build/outputs/apk/release/Easycontrol-ARMv7a-Release.apk"
-          
-          # Align APK
-          $BUILD_TOOLS_DIR/zipalign -v -p 4 $APK_PATH $ALIGNED_APK
-          
-          # Sign APK
-          $BUILD_TOOLS_DIR/apksigner sign \
-            --ks auto-release.jks \
-            --ks-pass pass:"easycontrolpass" \
-            --ks-key-alias "autoKey" \
-            --key-pass pass:"easycontrolpass" \
-            --out $FINAL_APK \
-            $ALIGNED_APK
+          cat <<EOF > easycontrolfork/keystore.properties
+          KEYSTORE_FILE=release.jks
+          KEYSTORE_PASSWORD=easycontrolpass
+          RELEASE_KEY_ALIAS=releaseKey
+          RELEASE_KEY_PASSWORD=easycontrolpass
+          storeFile=release.jks
+          storePassword=easycontrolpass
+          keyAlias=releaseKey
+          keyPassword=easycontrolpass
+          EOF
 
-      # 5. Upload Signed APK ke Artifacts
+      # 3. Langsung Build Release APK
+      - name: Build Server and Release APK
+        run: |
+          cd easycontrolfork
+          ./gradlew assembleDebug -p server
+          ./gradlew copyDebug -p server
+          ./gradlew assembleRelease
+
+      # 4. Upload Release APK
       - name: Upload Signed Release APK
         uses: actions/upload-artifact@v4
         with:
           name: Easycontrol-ARMv7a-Release-Signed
-          path: easycontrolfork/app/build/outputs/apk/release/Easycontrol-ARMv7a-Release.apk
+          path: easycontrolfork/app/build/outputs/apk/release/*.apk

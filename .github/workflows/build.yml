@@ -20,15 +20,40 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x easycontrolfork/gradlew
 
-      - name: Build Server and Unsigned Release APK
+      # 1. Generate Keystore Dummy & File keystore.properties
+      - name: Setup Dummy Keystore Properties
+        run: |
+          keytool -genkeypair -v \
+            -keystore easycontrolfork/dummy.jks \
+            -alias dummyKey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass "dummypass" \
+            -keypass "dummypass" \
+            -dname "CN=Dummy, OU=Dummy, O=Dummy, L=Dummy, S=Dummy, C=ID"
+
+          # Buat file keystore.properties agar build.gradle tidak error
+          cat <<EOF > keystore.properties
+          storeFile=dummy.jks
+          storePassword=dummypass
+          keyAlias=dummyKey
+          keyPassword=dummypass
+          EOF
+
+          # Salin keystore.properties ke root project
+          cp keystore.properties easycontrolfork/keystore.properties
+
+      # 2. Build Server and Release APK
+      - name: Build Server and Release APK
         run: |
           cd easycontrolfork
           ./gradlew assembleDebug -p server
           ./gradlew copyDebug -p server
           ./gradlew assembleRelease
 
-      # 1. Generate Keystore Secara Otomatis di Runner
-      - name: Generate Random Keystore
+      # 3. Generate Keystore Asli untuk Release Sign
+      - name: Generate Release Keystore
         run: |
           keytool -genkeypair -v \
             -keystore auto-release.jks \
@@ -40,19 +65,20 @@ jobs:
             -keypass "easycontrolpass" \
             -dname "CN=Easycontrol, OU=Release, O=AutoBuild, L=City, S=State, C=ID"
 
-      # 2. Zipalign & Sign APK Menggunakan Android SDK
+      # 4. Zipalign & Re-Sign APK Akhir
       - name: Auto Sign Release APK
         run: |
           BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -n 1)
           
-          APK_PATH="easycontrolfork/app/build/outputs/apk/release/app-release-unsigned.apk"
+          # Cari file APK hasil build (biasanya bernama app-release.apk atau app-release-unsigned.apk)
+          APK_PATH=$(find easycontrolfork/app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
           ALIGNED_APK="easycontrolfork/app/build/outputs/apk/release/easycontrol-release-aligned.apk"
           FINAL_APK="easycontrolfork/app/build/outputs/apk/release/Easycontrol-ARMv7a-Release.apk"
           
           # Align APK
           $BUILD_TOOLS_DIR/zipalign -v -p 4 $APK_PATH $ALIGNED_APK
           
-          # Sign APK dengan Keystore yang baru saja dibuat otomatis
+          # Re-sign APK dengan Keystore Asli
           $BUILD_TOOLS_DIR/apksigner sign \
             --ks auto-release.jks \
             --ks-pass pass:"easycontrolpass" \
@@ -61,7 +87,7 @@ jobs:
             --out $FINAL_APK \
             $ALIGNED_APK
 
-      # 3. Upload Signed APK ke Artifacts
+      # 5. Upload Signed APK ke Artifacts
       - name: Upload Signed Release APK
         uses: actions/upload-artifact@v4
         with:

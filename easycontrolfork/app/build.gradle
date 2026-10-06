@@ -2,10 +2,6 @@ plugins {
   id 'com.android.application' version '8.2.2'
 }
 
-def keystorePropertiesFile = rootProject.file('../keystore.properties')
-def keystoreProperties = new Properties()
-keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
-
 android {
   namespace 'com.daitj.easycontrolfork.app'
   compileSdk 34

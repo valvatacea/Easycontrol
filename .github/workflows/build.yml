@@ -1,4 +1,4 @@
-name: Build Easycontrol APK (Direct)
+name: Build Easycontrol Release APK
 
 on:
   workflow_dispatch:
@@ -20,17 +20,53 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x easycontrolfork/gradlew
 
-      # Build server dan APK versi Debug secara langsung
-      - name: Build Server and App APK
+      # 1. Generate Keystore Release
+      - name: Generate Release Keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore $GITHUB_WORKSPACE/release.jks \
+            -alias releaseKey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass "easycontrolpass" \
+            -keypass "easycontrolpass" \
+            -dname "CN=Easycontrol, OU=Release, O=AutoBuild, L=City, S=State, C=ID"
+
+      # 2. Buat keystore.properties Menggunakan PATH ABSOLUT
+      - name: Setup keystore.properties with Absolute Paths
+        run: |
+          KEY_PATH="$GITHUB_WORKSPACE/release.jks"
+
+          # Tulis isi properti dengan path absolut
+          cat <<EOF > $GITHUB_WORKSPACE/keystore.properties
+          KEYSTORE_FILE=$KEY_PATH
+          KEYSTORE_PASSWORD=easycontrolpass
+          RELEASE_KEY_ALIAS=releaseKey
+          RELEASE_KEY_PASSWORD=easycontrolpass
+          storeFile=$KEY_PATH
+          storePassword=easycontrolpass
+          keyAlias=releaseKey
+          keyPassword=easycontrolpass
+          EOF
+
+          # Duplikasi properti ke semua subfolder agar tidak miss
+          cp $GITHUB_WORKSPACE/keystore.properties $GITHUB_WORKSPACE/easycontrolfork/keystore.properties
+          cp $GITHUB_WORKSPACE/keystore.properties $GITHUB_WORKSPACE/easycontrolfork/app/keystore.properties
+          cp $GITHUB_WORKSPACE/release.jks $GITHUB_WORKSPACE/easycontrolfork/release.jks
+          cp $GITHUB_WORKSPACE/release.jks $GITHUB_WORKSPACE/easycontrolfork/app/release.jks
+
+      # 3. Build Server and Release APK
+      - name: Build Server and Release APK
         run: |
           cd easycontrolfork
           ./gradlew assembleDebug -p server
           ./gradlew copyDebug -p server
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease
 
-      # Simpan hasil APK yang siap install
-      - name: Upload APK
+      # 4. Upload Release APK
+      - name: Upload Signed Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: Easycontrol-ARMv7a-Direct
-          path: easycontrolfork/app/build/outputs/apk/debug/app-debug.apk
+          name: Easycontrol-ARMv7a-Release-Signed
+          path: easycontrolfork/app/build/outputs/apk/release/*.apk

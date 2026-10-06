@@ -1,4 +1,4 @@
-name: Build Easycontrol Release APK
+name: Build & Release Easycontrol APK
 
 on:
   workflow_dispatch:
@@ -6,6 +6,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Diperlukan agar GitHub Actions punya izin membuat Release
 
     steps:
       - name: Checkout Code
@@ -48,7 +50,7 @@ jobs:
           
           RAW_APK=$(find easycontrolfork/app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
           ALIGNED_APK="easycontrolfork/app/build/outputs/apk/release/easycontrol-aligned.apk"
-          FINAL_APK="easycontrolfork/app/build/outputs/apk/release/Easycontrol-ARMv7a-Release-Signed.apk"
+          FINAL_APK="easycontrolfork/app/build/outputs/apk/release/Easycontrol-ARMv7a-Release.apk"
           
           $BUILD_TOOLS_DIR/zipalign -v -p 4 $RAW_APK $ALIGNED_APK
           
@@ -60,9 +62,15 @@ jobs:
             --out $FINAL_APK \
             $ALIGNED_APK
 
-      # 4. Upload Release APK
-      - name: Upload Signed Release APK
-        uses: actions/upload-artifact@v4
+      # 4. Unggah Langsung APK ke Menu Releases GitHub
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
         with:
-          name: Easycontrol-ARMv7a-Release-Signed
-          path: easycontrolfork/app/build/outputs/apk/release/Easycontrol-ARMv7a-Release-Signed.apk
+          tag_name: v1.0.0-${{ github.run_number }}
+          name: Easycontrol ARMv7a Release v1.0.0-${{ github.run_number }}
+          body: |
+            File APK Easycontrol yang sudah dikompilasi dan mendukung arsitektur **ARMv7a (32-bit)** serta **ARMv8a (64-bit)**.
+          files: |
+            easycontrolfork/app/build/outputs/apk/release/Easycontrol-ARMv7a-Release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -24,15 +24,6 @@ android {
   viewBinding {
     enabled = true
   }
-  
-  signingConfigs {
-      release {
-          storeFile file(keystoreProperties['MY_KEYSTORE_FILE'])
-          storePassword keystoreProperties['MY_KEYSTORE_PASSWORD']
-          keyAlias keystoreProperties['MY_KEY_ALIAS']
-          keyPassword keystoreProperties['MY_KEY_PASSWORD']
-      }
-  }
 
   buildTypes {
     debug {

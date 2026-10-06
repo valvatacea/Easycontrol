@@ -1,4 +1,4 @@
-name: Build Easycontrol APK
+name: Build, Auto-Generate Key & Sign APK
 
 on:
   workflow_dispatch:
@@ -20,15 +20,50 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x easycontrolfork/gradlew
 
-      - name: Build Server and APK
+      - name: Build Server and Unsigned Release APK
         run: |
           cd easycontrolfork
           ./gradlew assembleDebug -p server
           ./gradlew copyDebug -p server
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease
 
-      - name: Upload APK
+      # 1. Generate Keystore Secara Otomatis di Runner
+      - name: Generate Random Keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore auto-release.jks \
+            -alias autoKey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass "easycontrolpass" \
+            -keypass "easycontrolpass" \
+            -dname "CN=Easycontrol, OU=Release, O=AutoBuild, L=City, S=State, C=ID"
+
+      # 2. Zipalign & Sign APK Menggunakan Android SDK
+      - name: Auto Sign Release APK
+        run: |
+          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -n 1)
+          
+          APK_PATH="easycontrolfork/app/build/outputs/apk/release/app-release-unsigned.apk"
+          ALIGNED_APK="easycontrolfork/app/build/outputs/apk/release/easycontrol-release-aligned.apk"
+          FINAL_APK="easycontrolfork/app/build/outputs/apk/release/Easycontrol-ARMv7a-Release.apk"
+          
+          # Align APK
+          $BUILD_TOOLS_DIR/zipalign -v -p 4 $APK_PATH $ALIGNED_APK
+          
+          # Sign APK dengan Keystore yang baru saja dibuat otomatis
+          $BUILD_TOOLS_DIR/apksigner sign \
+            --ks auto-release.jks \
+            --ks-pass pass:"easycontrolpass" \
+            --ks-key-alias "autoKey" \
+            --key-pass pass:"easycontrolpass" \
+            --out $FINAL_APK \
+            $ALIGNED_APK
+
+      # 3. Upload Signed APK ke Artifacts
+      - name: Upload Signed Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: Easycontrol-ARMv7a-Debug
-          path: easycontrolfork/app/build/outputs/apk/debug/app-debug.apk
+          name: Easycontrol-ARMv7a-Release-Signed
+          path: easycontrolfork/app/build/outputs/apk/release/Easycontrol-ARMv7a-Release.apk
